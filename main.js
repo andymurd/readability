@@ -1,15 +1,23 @@
+(function() {
+    "use strict";
+
 const fs = require('fs')
+const path = require('path')
 const syllable = require('syllable')
 const punctuationRE = /[\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*+,\-./:;<=>?@[\]^_`{|}~]/g
-const easyWprds = fs.readFileSync('easy_words.txt', 'utf-8')
-const easyWordSet = new Set(easyWprds.split(/\n/g))
+const easyWordsPath = path.join(__dirname, 'easy_words.txt')
+const easyWords = fs.readFileSync(easyWordsPath, 'utf-8')
+const easyWordSet = new Set(easyWords.split(/\n/g))
 
 // extends Math object
 Math.copySign = (x, y) => {
   return x * (y / Math.abs(y))
 }
-Math.legacyRound = (number, points = 0) => {
-  const p = 10 ** points
+Math.legacyRound = (number, points) => {
+  if (points === undefined) {
+      points = 0;
+  }
+  const p = 10 ^ points
   // return float(math.floor((number * p) + math.copysign(0.5, number))) / p
   return Math.floor((number * p) + Math.copySign(0.5, number)) / p
 }
@@ -25,11 +33,13 @@ class Readability {
     }
     return gradeMap[grade] ? gradeMap[grade] : 'th'
   }
-  charCount (text, ignoreSpaces = true) {
+  charCount (text, ignoreSpaces) {
+    if (ignoreSpaces === undefined) ignoreSpaces = true
     if (ignoreSpaces) text = text.replace(/ /g, '')
     return text.length
   }
-  letterCount (text, ignoreSpaces = true) {
+  letterCount (text, ignoreSpaces) {
+    if (ignoreSpaces === undefined) ignoreSpaces = true
     if (ignoreSpaces) text = text.replace(/ /g, '')
     return this.removePunctuation(text).length
   }
@@ -42,13 +52,15 @@ class Readability {
     text = text.filter(n => n)
     return text
   }
-  lexiconCount (text, removePunctuation = true) {
+  lexiconCount (text, removePunctuation) {
+    if (removePunctuation === undefined) removePunctuation = true
     if (removePunctuation) text = this.removePunctuation(text)
     text = text.split(/,| |\n|\r/g)
     text = text.filter(n => n)
     return text.length
   }
-  syllableCount (text, lang = 'en-US') {
+  syllableCount (text, lang) {
+    if (lang === undefined) lang = 'en-US'
     text = text.toLocaleLowerCase(lang)
     text = this.removePunctuation(text)
     if (!text) return 0
@@ -119,7 +131,7 @@ class Readability {
     const sentences = this.sentenceCount(text)
     if (sentences >= 3) {
       const polySyllab = this.polySyllableCount(text)
-      const smog = 1.043 * (30 * (polySyllab / sentences)) ** 0.5 + 3.1291
+      const smog = 1.043 * Math.pow(30 * (polySyllab / sentences), 0.5) + 3.1291
       const returnVal = Math.legacyRound(smog, 1)
       return !isNaN(returnVal) ? returnVal : 0.0
     }
@@ -164,15 +176,16 @@ class Readability {
     returnVal = Math.legacyRound(returnVal, 1)
     return !isNaN(returnVal) ? returnVal : 0.0
   }
-  difficultWords (text, syllableThreshold = 2) {
-    const textList = text.match(/[\w=‘’]+/g)
+  difficultWords (text, syllableThreshold) {
+    if (syllableThreshold === undefined) syllableThreshold = 2
+    const textList = text.match(/[\w=‘’]+/g) || []
     const diffWordsSet = new Set()
     for (let word of textList) {
       if (!easyWordSet.has(word) && this.syllableCount(word) >= syllableThreshold) {
         diffWordsSet.add(word)
       }
     }
-    return [...diffWordsSet].length
+    return diffWordsSet.length
   }
   daleChallReadabilityScore (text) {
     const wordCount = this.lexiconCount(text)
@@ -207,7 +220,8 @@ class Readability {
     const rix = longWordsCount / sentencesCount
     return !isNaN(rix) ? Math.legacyRound(rix, 2) : 0.0
   }
-  textStandard (text, floatOutput = null) {
+  textStandard (text, floatOutput) {
+    if (floatOutput === undefined) floatOutput = null
     const grade = []
     // Appending Flesch Kincaid Grade
     let lower = Math.legacyRound(this.fleschKincaidGrade(text))
@@ -281,7 +295,7 @@ class Readability {
     //     )
     // Finding the Readability Consensus based upon all the above tests
     // console.log('grade List: ', grade)
-    const counterMap = [...new Set(grade)].map(x => [x, grade.filter(y => y === x).length])
+    const counterMap = grade.map(x => [x, grade.filter(y => y === x).length])
     const finalGrade = counterMap.reduce((x, y) => y[1] >= x[1] ? y : x)
     score = finalGrade[0]
     if (floatOutput) return score
@@ -292,3 +306,5 @@ class Readability {
 }
 const readability = new Readability()
 module.exports = readability
+}());
+
